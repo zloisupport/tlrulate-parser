@@ -349,3 +349,13 @@ class Book:
 
             epub.write_epub(f'{epub_file}', ebook, {})
 
+    def save(self):
+        """
+        Save the content based on the specified file format.
+        If the file format is EPUB (1), it calls the 'save_as_epub' method.
+        If the file format is TXT (2), it calls the 'save_as_text' method.
+        """
+        if self.file_format == FileFormat.EPUB:
+            self.save_as_epub()
+        else:
+            self.save_as_text()
