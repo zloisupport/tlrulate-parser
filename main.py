@@ -1,6 +1,6 @@
 
 import argparse
-from parser2.book import Book
+from parser2.book import Book, FileFormat
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -17,13 +17,18 @@ def main():
     args = parser.parse_args()
 
     # main
-    book = Book(args.book_url)
+    file_format = FileFormat.TXT
+    book = Book(args.book_url,file_format)
 
     book.parse()
     book.parse_chapters()
     book.print_content()
-    book.save_as_epub(f"{book.title}.epub")
-    # book.save_as_text(f"{book.title}.txt")
+
+    if file_format == FileFormat.EPUB:
+        book.save_as_epub()
+    else:
+        book.save_as_text()
+
     input("Enter to continue...")
 
 

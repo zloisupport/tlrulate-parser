@@ -1,7 +1,9 @@
+import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from enum import Enum
 
 import httpx
 import xxhash
@@ -68,7 +70,11 @@ DEFAULT_VOLUME_CONTENT = generate_volume_content("Том 0")
 
 BASE_URL = "https://tl.rulate.ru"
 ENABLE_IMAGES = False
+BASE_DIR  = os.path.join(os.getcwd(),"Ranobe")
 
+class FileFormat(Enum):
+    EPUB= 1
+    TXT = 2
 
 class Book:
     title: str = ""
@@ -79,9 +85,10 @@ class Book:
     uid: str = ""
     cookies: str = {}
     cover: Image
-
-    def __init__(self, url):
+    file_format:str = ""
+    def __init__(self, url,file_format):
         self.url = str(url)
+        self.file_format = str(file_format)
         self.volumes.append(Volume(DEFAULT_VOLUME_TITILE, DEFAULT_VOLUME_FILENAME, DEFAULT_VOLUME_CONTENT))
 
     def print_content(self):
@@ -252,14 +259,17 @@ class Book:
 
             for vol_i in range(0, len(self.volumes)):
                 for ch_i in range(0, len(self.volumes[vol_i].chapters)):
-                    pool.submit(self.parse_chapter, vol_i, ch_i, self.volumes[vol_i].chapters[ch_i])
+                    if self.file_format == FileFormat.EPUB:
+                        pool.submit(self.parse_chapter, vol_i, ch_i, self.volumes[vol_i].chapters[ch_i])
+                    else:
+                        pool.submit(self.parse_chapter2, vol_i, ch_i, self.volumes[vol_i].chapters[ch_i])
 
             for future in as_completed(futures):
                 vol_i, ch_i, new_ch = future.result()
                 self.volumes[vol_i].chapters[ch_i] = new_ch
 
 
-    def save_as_text(self,outfilename):
+    def save_as_text(self):
         data: list = []
 
         for vol in self.volumes:
@@ -269,11 +279,23 @@ class Book:
                         text = f"\n{ch.title}\n{ch.content}"
                         data.append(text)
 
-        with open(outfilename,'w',encoding='utf-8')as book:
+        path = self.clean_title_to_path(self.title)
+        txt_file_path = os.path.join(BASE_DIR, path)
+
+        if not os.path.exists(txt_file_path):
+            os.mkdir(txt_file_path)
+
+        txt_file = os.path.join(txt_file_path, f"{path}.txt")
+
+        with open(txt_file,'w',encoding='utf-8')as book:
             book.write('\n'.join(data))
 
 
-    def save_as_epub(self, outfilename):
+    def clean_title_to_path(self,title:str)->str:
+        return re.sub('[^a-zA-Z0-9\sА-Яа-яЁё]','-',title)
+
+
+    def save_as_epub(self):
         ebook = epub.EpubBook()
         try:
             ebook.set_identifier(self.uid)
@@ -318,5 +340,12 @@ class Book:
         except Exception as e:
             print(e)
         finally:
-            epub.write_epub(outfilename, ebook, {})
+            path = self.clean_title_to_path(self.title)
+
+            epub_file_path = os.path.join(BASE_DIR,path)
+            if not os.path.exists(epub_file_path):
+                os.mkdir(epub_file_path)
+            epub_file = os.path.join(epub_file_path,f'{path}.epub')
+
+            epub.write_epub(f'{epub_file}', ebook, {})
 
