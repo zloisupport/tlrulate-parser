@@ -1,17 +1,6 @@
-import sys
-import os
+
 import argparse
-
-# import httpx
-# import lxml
-# import html5_parser
-
-# import parser2
-# from parser2 import mimetype
 from parser2.book import Book
-
-# from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-# from urllib.parse import quote_plus, unquote_plus
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -29,10 +18,12 @@ def main():
 
     # main
     book = Book(args.book_url)
+
     book.parse()
     book.parse_chapters()
     book.print_content()
     book.save_as_epub(f"{book.title}.epub")
+    # book.save_as_text(f"{book.title}.txt")
     input("Enter to continue...")
 
 

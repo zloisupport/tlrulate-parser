@@ -1,17 +1,18 @@
-from dataclasses import dataclass, field
-# from typing import List
-
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from parser2 import mimetype
+import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 
 import httpx
-from lxml import etree
-import html5_parser
 import xxhash
-import re
+from bs4 import BeautifulSoup
+from lxml import etree
 
 from ebooklib import epub
+from parser2 import mimetype
+
+
+# from typing import List
 
 
 @dataclass
@@ -66,7 +67,7 @@ DEFAULT_VOLUME_FILENAME = "volume-0.xhtml"
 DEFAULT_VOLUME_CONTENT = generate_volume_content("Том 0")
 
 BASE_URL = "https://tl.rulate.ru"
-ENABLE_IMAGES = True
+ENABLE_IMAGES = False
 
 
 class Book:
@@ -91,7 +92,7 @@ class Book:
                 print(f"│   ├── {ch.title:<90}    ({ch.filename})")
 
     def download_image(self, url) -> Image:
-        with httpx.Client(timeout=10, http2=True, follow_redirects=True, cookies=self.cookies) as client:
+        with httpx.Client(timeout=10, http2=True, cookies=self.cookies) as client:
             response = get_with_retry(client, url)
             if response:
                 raw = response.content
@@ -135,7 +136,10 @@ class Book:
             response = get_with_retry(client, new_ch.url)
 
             if response:
-                root = html5_parser.parse(response.content)
+
+                soup = BeautifulSoup(response.content, "html.parser")
+                root = etree.HTML(str(soup))
+
                 content_text = root.xpath('//*[@class="content-text"]')[0]
 
                 if ENABLE_IMAGES:
@@ -149,6 +153,7 @@ class Book:
                         if p.text is not None:
                             if p.text == '':
                                 p.getparent().remove(p)
+                                new_ch.context= p.getparent().remove(p)
                         else:
                             p.getparent().remove(p)
 
@@ -169,7 +174,6 @@ class Book:
                 xml_body.append(content_text)
 
                 etree.indent(xml_body, space="\t")
-
                 new_ch.content = etree.tostring(
                     xml_body,
                     # doctype="<!DOCTYPE html>",
@@ -183,11 +187,30 @@ class Book:
             print(f"[INF] Book.parse_chapter - completed - filename: {new_ch.filename}")
             return vol_i, ch_i, new_ch
 
+    def parse_chapter2(self, vol_i, ch_i, chapter: Chapter) -> Chapter:
+        with httpx.Client(timeout=10, cookies=self.cookies) as client:
+            new_ch = chapter
+            response = get_with_retry(client, new_ch.url)
+
+            if response:
+
+                soup = BeautifulSoup(response.content, "html.parser")
+                root = etree.HTML(str(soup))
+                content_elements = root.xpath('//div[@class="content-text"]//text()')
+                content_text = "".join(content_elements)
+
+                content_text = re.sub(r'\w+:\/{2}[\d\w-]+(\.[\d\w-]+)*(?:(?:\/[^\s/]*))*', '', content_text)
+                new_ch.content = content_text
+
+            return vol_i, ch_i, new_ch
+
     def parse(self):
         with httpx.Client(timeout=10, cookies=self.cookies) as client:
             response = get_with_retry(client, self.url)
             if response:
-                root = html5_parser.parse(response.content)
+
+                soup = BeautifulSoup(response.content, "html.parser")
+                root = etree.HTML(str(soup))
                 # print(etree.tostring(root, pretty_print=True, encoding="unicode"))
 
                 self.uid = 'idtlrulate' + self.url.split('/')[-1:][0]
@@ -197,6 +220,7 @@ class Book:
                 cover_url = root.xpath('//*[@class="slick"]/div/img')[0].get("src")
                 if cover_url[0:1] == '/':
                     cover_url = BASE_URL + cover_url
+                print(cover_url)
                 self.cover = self.download_image(cover_url)
 
                 table = root.xpath("/html/body/div[2]/div[3]/div[1]/form/table/tbody/tr")
@@ -235,47 +259,64 @@ class Book:
                 self.volumes[vol_i].chapters[ch_i] = new_ch
 
 
-    def save_as_epub(self, outfilename):
-        ebook = epub.EpubBook()
-
-        ebook.set_identifier(self.uid)
-        ebook.set_title(self.title)
-        ebook.set_language(self.language)
-        ebook.add_metadata('DC', 'description', self.description)
-
-        ebook.spine.append("nav")
-
-        ebook.set_cover(file_name=f"Images/{self.cover.filename}", content=self.cover.content)
-
-        ebook.toc = []
+    def save_as_text(self,outfilename):
+        data: list = []
 
         for vol in self.volumes:
             if len(vol.chapters) > 0:
-                bookvol = epub.EpubHtml(title=vol.title, file_name=f"Text/{vol.filename}", content=vol.content)
-                ebook.add_item(bookvol)
-                ebook.spine.append(bookvol)
-
-                bookchs = []
-
+                data.append(str(vol.title))
                 for ch in vol.chapters:
-                    bookch = epub.EpubHtml(title=ch.title, file_name=f"Text/{ch.filename}", content=ch.content)
-                    ebook.add_item(bookch)
-                    ebook.spine.append(bookch)
+                        text = f"\n{ch.title}\n{ch.content}"
+                        data.append(text)
 
-                    bookchs.append(bookch)
+        with open(outfilename,'w',encoding='utf-8')as book:
+            book.write('\n'.join(data))
 
-                ebook.toc.append([bookvol, bookchs])
 
-        for key, image in self.images.items():
-            bookimg = epub.EpubImage(
-                uid=f"x{image.filehash}",
-                file_name=f"Images/{image.filename}",
-                media_type=image.mimetype,
-                content=image.content,
-            )
-            ebook.add_item(bookimg)
+    def save_as_epub(self, outfilename):
+        ebook = epub.EpubBook()
+        try:
+            ebook.set_identifier(self.uid)
+            ebook.set_title(self.title)
+            ebook.set_language(self.language)
+            ebook.add_metadata('DC', 'description', self.description)
 
-        ebook.add_item(epub.EpubNcx())
-        ebook.add_item(epub.EpubNav())
+            ebook.spine.append("nav")
 
-        epub.write_epub(outfilename, ebook, {})
+            ebook.set_cover(file_name=f"Images/{self.cover.filename}", content=self.cover.content)
+
+            ebook.toc = []
+
+            for vol in self.volumes:
+                if len(vol.chapters) > 0:
+                    bookvol = epub.EpubHtml(title=vol.title, file_name=f"Text/{vol.filename}", content=vol.content)
+                    ebook.add_item(bookvol)
+                    ebook.spine.append(bookvol)
+
+                    bookchs = []
+
+                    for ch in vol.chapters:
+                        bookch = epub.EpubHtml(title=ch.title, file_name=f"Text/{ch.filename}", content=ch.content)
+                        ebook.add_item(bookch)
+                        ebook.spine.append(bookch)
+
+                        bookchs.append(bookch)
+
+                    ebook.toc.append([bookvol, bookchs])
+
+            for key, image in self.images.items():
+                bookimg = epub.EpubImage(
+                    uid=f"x{image.filehash}",
+                    file_name=f"Images/{image.filename}",
+                    media_type=image.mimetype,
+                    content=image.content,
+                )
+                ebook.add_item(bookimg)
+
+            ebook.add_item(epub.EpubNcx())
+            ebook.add_item(epub.EpubNav())
+        except Exception as e:
+            print(e)
+        finally:
+            epub.write_epub(outfilename, ebook, {})
+
