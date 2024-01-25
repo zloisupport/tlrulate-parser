@@ -1,6 +1,6 @@
 from abc import ABC
 
-from parser2.book import Book
+from parser2.book import Book, FileFormat
 
 
 class Command(ABC):
@@ -26,6 +26,12 @@ class BookCommand(Command):
 
 class Receiver:
     def save_action(self,book_url,file_format):
+
+        if int(file_format) == 1:
+            file_format = FileFormat.EPUB
+        else:
+            file_format = FileFormat.TXT
+
         book = Book(book_url,file_format)
         book.parse()
         book.parse_chapters()

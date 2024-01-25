@@ -89,11 +89,13 @@ class Book:
     uid: str = ""
     cookies: str = {}
     cover: Image
-    file_format: str = ""
+    file_format: FileFormat
 
-    def __init__(self, url, file_format):
+    def __init__(self, url:str, file_format:FileFormat):
         self.url = str(url)
-        self.file_format = str(file_format)
+
+        self.file_format = file_format
+
         self.volumes.append(
             Volume(
                 DEFAULT_VOLUME_TITILE, DEFAULT_VOLUME_FILENAME, DEFAULT_VOLUME_CONTENT
@@ -334,6 +336,9 @@ class Book:
         path = self.clean_title_to_path(self.title)
         txt_file_path = os.path.join(BASE_DIR, path)
 
+        if not os.path.exists(BASE_DIR):
+            os.mkdir(BASE_DIR)
+
         if not os.path.exists(txt_file_path):
             os.mkdir(txt_file_path)
 
@@ -403,8 +408,12 @@ class Book:
             path = self.clean_title_to_path(self.title)
 
             epub_file_path = os.path.join(BASE_DIR, path)
+
+            if not os.path.exists(BASE_DIR):
+                os.mkdir(BASE_DIR)
             if not os.path.exists(epub_file_path):
                 os.mkdir(epub_file_path)
+
             epub_file = os.path.join(epub_file_path, f"{path}.epub")
 
             epub.write_epub(f"{epub_file}", ebook, {})
