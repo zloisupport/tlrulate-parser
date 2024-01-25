@@ -91,7 +91,7 @@ class Book:
     cover: Image
     file_format: FileFormat
 
-    def __init__(self, url:str, file_format:FileFormat):
+    def __init__(self, url: str, file_format: FileFormat):
         self.url = str(url)
 
         self.file_format = file_format

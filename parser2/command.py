@@ -4,7 +4,7 @@ from parser2.book import Book, FileFormat
 
 
 class Command(ABC):
-    def __init__(self, receiver,book_url:str,file_format:int) -> None:
+    def __init__(self, receiver, book_url: str, file_format: int) -> None:
         self.receiver = receiver
         self.book_url = book_url
         self.file_format = file_format
@@ -14,30 +14,28 @@ class Command(ABC):
 
 
 class BookCommand(Command):
-    def __init__(self, receiver,book_url,file_format) -> None:
+    def __init__(self, receiver, book_url, file_format) -> None:
         self.receiver = receiver
         self.book_url = book_url
         self.file_format = file_format
 
-
     def process(self):
-        self.receiver.save_action(self.book_url,self.file_format)
+        self.receiver.save_action(self.book_url, self.file_format)
 
 
 class Receiver:
-    def save_action(self,book_url,file_format):
-
+    def save_action(self, book_url, file_format):
         if int(file_format) == 1:
             file_format = FileFormat.EPUB
         else:
             file_format = FileFormat.TXT
 
-        book = Book(book_url,file_format)
+        book = Book(book_url, file_format)
         book.parse()
         book.parse_chapters()
         book.print_content()
         book.save()
-        print('Success!')
+        print("Success!")
 
 
 class Invoker:

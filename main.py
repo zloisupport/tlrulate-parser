@@ -41,8 +41,11 @@ def main():
                 url = str(input("URL:"))
                 print("Please Enter File Format:1 -Epub ,2 -TXT(default)")
                 file_format = int(input("File Format:"))
-                if url != "" and len(url) > 25 and (file_format != "" and len(str(file_format))==1):
-
+                if (
+                    url != ""
+                    and len(url) > 25
+                    and (file_format != "" and len(str(file_format)) == 1)
+                ):
                     execute_command(url, file_format)
                 else:
                     print("Invalid input. Please try again.")
